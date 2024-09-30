@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theo dõi Mood Chart</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md">
+        <h1 class="text-3xl font-bold mb-6 text-center">Theo dõi Mood Chart</h1>
+        
+        <div class="mb-6 p-4 bg-yellow-100 rounded-lg">
+            <p class="font-semibold">Chú thích mức độ:</p>
+            <ul class="list-disc list-inside">
+                <li>0: Không</li>
+                <li>1: Nhẹ</li>
+                <li>2: Trung bình</li>
+                <li>3: Nghiêm trọng</li>
+            </ul>
+        </div>
+        
+        <form id="moodForm" class="space-y-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="date" class="block mb-1">Ngày:</label>
+                    <input type="date" id="date" name="date" required class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label for="sleepTime" class="block mb-1">Thời gian ngủ (giờ):</label>
+                    <input type="number" id="sleepTime" name="sleepTime" min="0" max="24" step="0.5" required class="w-full p-2 border rounded">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="depression" class="block mb-1">Mức độ trầm buồn:</label>
+                    <select id="depression" name="depression" required class="w-full p-2 border rounded">
+                        <option value="0">Không</option>
+                        <option value="1">Nhẹ</option>
+                        <option value="2">Trung bình</option>
+                        <option value="3">Nghiêm trọng</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="mania" class="block mb-1">Mức độ hưng phấn:</label>
+                    <select id="mania" name="mania" required class="w-full p-2 border rounded">
+                        <option value="0">Không</option>
+                        <option value="1">Nhẹ</option>
+                        <option value="2">Trung bình</option>
+                        <option value="3">Nghiêm trọng</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="irritability" class="block mb-1">Mức độ cáu gắt:</label>
+                    <select id="irritability" name="irritability" required class="w-full p-2 border rounded">
+                        <option value="0">Không</option>
+                        <option value="1">Nhẹ</option>
+                        <option value="2">Trung bình</option>
+                        <option value="3">Nghiêm trọng</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="anxiety" class="block mb-1">Mức độ lo âu:</label>
+                    <select id="anxiety" name="anxiety" required class="w-full p-2 border rounded">
+                        <option value="0">Không</option>
+                        <option value="1">Nhẹ</option>
+                        <option value="2">Trung bình</option>
+                        <option value="3">Nghiêm trọng</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label for="notes" class="block mb-1">Ghi chú:</label>
+                <textarea id="notes" name="notes" rows="3" class="w-full p-2 border rounded"></textarea>
+            </div>
+            <button type="submit" class="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition duration-300">Thêm dữ liệu</button>
+        </form>
+        
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Biểu đồ Mood</h2>
+            <canvas id="moodChart"></canvas>
+        </div>
+        
+        <div>
+            <h2 class="text-2xl font-semibold mb-4">Lịch sử Mood</h2>
+            <div id="moodHistory" class="space-y-4"></div>
+        </div>
+        
+        <div class="mt-8">
+            <button id="clearDataBtn" class="bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600 transition duration-300">Xóa tất cả dữ liệu</button>
+        </div>
+    </div>
+
+    <script>
+        let moodData = [];
+        
+        // Hàm để lưu dữ liệu vào localStorage
+        function saveMoodData() {
+            localStorage.setItem('moodData', JSON.stringify(moodData));
+        }
+        
+        // Hàm để tải dữ liệu từ localStorage
+        function loadMoodData() {
+            const storedData = localStorage.getItem('moodData');
+            if (storedData) {
+                moodData = JSON.parse(storedData);
+            }
+        }
+        
+        // Tải dữ liệu khi trang được load
+        loadMoodData();
+
+        let chart;
+
+        function updateChart() {
+            const ctx = document.getElementById('moodChart').getContext('2d');
+            
+            if (chart) {
+                chart.destroy();
+            }
+
+            const sortedData = moodData.sort((a, b) => new Date(a.date) - new Date(b.date));
+            const labels = sortedData.map(entry => entry.date);
+            const depressionData = sortedData.map(entry => entry.depression);
+            const maniaData = sortedData.map(entry => entry.mania);
+            const irritabilityData = sortedData.map(entry => entry.irritability);
+            const anxietyData = sortedData.map(entry => entry.anxiety);
+            const sleepData = sortedData.map(entry => entry.sleepTime);
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Trầm buồn',
+                            data: depressionData,
+                            borderColor: 'rgb(54, 162, 235)',
+                            tension: 0.1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Hưng phấn',
+                            data: maniaData,
+                            borderColor: 'rgb(255, 99, 132)',
+                            tension: 0.1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Cáu gắt',
+                            data: irritabilityData,
+                            borderColor: 'rgb(255, 159, 64)',
+                            tension: 0.1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Lo âu',
+                            data: anxietyData,
+                            borderColor: 'rgb(75, 192, 192)',
+                            tension: 0.1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Thời gian ngủ',
+                            data: sleepData,
+                            borderColor: 'rgb(153, 102, 255)',
+                            tension: 0.1,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 3,
+                            title: {
+                                display: true,
+                                text: 'Mức độ (0-3)'
+                            }
+                        },
+                        y1: {
+                            beginAtZero: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Thời gian ngủ (giờ)'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateMoodHistory() {
+            const historyContainer = document.getElementById('moodHistory');
+            historyContainer.innerHTML = '';
+
+            const sortedData = moodData.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            sortedData.forEach(entry => {
+                const entryElement = document.createElement('div');
+                entryElement.className = 'bg-gray-50 p-4 rounded-lg';
+                entryElement.innerHTML = `
+                    <p class="font-semibold">Ngày: ${entry.date}</p>
+                    <p>Thời gian ngủ: ${entry.sleepTime} giờ</p>
+                    <p>Trầm buồn: ${getMoodLabel(entry.depression)}</p>
+                    <p>Hưng phấn: ${getMoodLabel(entry.mania)}</p>
+                    <p>Cáu gắt: ${getMoodLabel(entry.irritability)}</p>
+                    <p>Lo âu: ${getMoodLabel(entry.anxiety)}</p>
+                    <p>Ghi chú: ${entry.notes || 'Không có ghi chú'}</p>
+                `;
+                historyContainer.appendChild(entryElement);
+            });
+        }
+
+        function getMoodLabel(value) {
+            const labels = ['Không', 'Nhẹ', 'Trung bình', 'Nghiêm trọng'];
+            return labels[value];
+        }
+
+        document.getElementById('moodForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const newEntry = {
+                date: formData.get('date'),
+                sleepTime: parseFloat(formData.get('sleepTime')),
+                depression: parseInt(formData.get('depression')),
+                mania: parseInt(formData.get('mania')),
+                irritability: parseInt(formData.get('irritability')),
+                anxiety: parseInt(formData.get('anxiety')),
+                notes: formData.get('notes')
+            };
+
+            moodData.push(newEntry);
+            saveMoodData(); // Lưu dữ liệu sau khi thêm mới
+
+            updateChart();
+            updateMoodHistory();
+            this.reset();
+        });
+
+        // Thêm sự kiện cho nút xóa dữ liệu
+        document.getElementById('clearDataBtn').addEventListener('click', function() {
+            if (confirm('Bạn có chắc chắn muốn xóa tất cả dữ liệu?')) {
+                moodData = [];
+                saveMoodData();
+                updateChart();
+                updateMoodHistory();
+            }
+        });
+
+        updateChart();
+        updateMoodHistory();
+    </script>
+</body>
+</html>
