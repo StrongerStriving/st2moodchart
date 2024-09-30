@@ -6,6 +6,8 @@
     <title>Theo dõi Mood Chart</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 </head>
 <body class="bg-gray-100 p-8">
     <div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md">
@@ -87,20 +89,30 @@
             <div id="moodHistory" class="space-y-4"></div>
         </div>
         
-        <div class="mt-8">
-            <button id="clearDataBtn" class="bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600 transition duration-300">Xóa tất cả dữ liệu</button>
+        <div class="mt-8 space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="startDate" class="block mb-1">Ngày bắt đầu:</label>
+                    <input type="date" id="startDate" name="startDate" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label for="endDate" class="block mb-1">Ngày kết thúc:</label>
+                    <input type="date" id="endDate" name="endDate" class="w-full p-2 border rounded">
+                </div>
+            </div>
+            <button id="exportPdfBtn" class="w-full bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600 transition duration-300">Xuất PDF</button>
+            <button id="clearDataBtn" class="w-full bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600 transition duration-300">Xóa tất cả dữ liệu</button>
         </div>
     </div>
 
     <script>
         let moodData = [];
+        let chart;
         
-        // Hàm để lưu dữ liệu vào localStorage
         function saveMoodData() {
             localStorage.setItem('moodData', JSON.stringify(moodData));
         }
         
-        // Hàm để tải dữ liệu từ localStorage
         function loadMoodData() {
             const storedData = localStorage.getItem('moodData');
             if (storedData) {
@@ -108,19 +120,16 @@
             }
         }
         
-        // Tải dữ liệu khi trang được load
         loadMoodData();
 
-        let chart;
-
-        function updateChart() {
+        function updateChart(data = moodData) {
             const ctx = document.getElementById('moodChart').getContext('2d');
             
             if (chart) {
                 chart.destroy();
             }
 
-            const sortedData = moodData.sort((a, b) => new Date(a.date) - new Date(b.date));
+            const sortedData = data.sort((a, b) => new Date(a.date) - new Date(b.date));
             const labels = sortedData.map(entry => entry.date);
             const depressionData = sortedData.map(entry => entry.depression);
             const maniaData = sortedData.map(entry => entry.mania);
@@ -197,11 +206,11 @@
             });
         }
 
-        function updateMoodHistory() {
+        function updateMoodHistory(data = moodData) {
             const historyContainer = document.getElementById('moodHistory');
             historyContainer.innerHTML = '';
 
-            const sortedData = moodData.sort((a, b) => new Date(b.date) - new Date(a.date));
+            const sortedData = data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
             sortedData.forEach(entry => {
                 const entryElement = document.createElement('div');
@@ -238,14 +247,13 @@
             };
 
             moodData.push(newEntry);
-            saveMoodData(); // Lưu dữ liệu sau khi thêm mới
+            saveMoodData();
 
             updateChart();
             updateMoodHistory();
             this.reset();
         });
 
-        // Thêm sự kiện cho nút xóa dữ liệu
         document.getElementById('clearDataBtn').addEventListener('click', function() {
             if (confirm('Bạn có chắc chắn muốn xóa tất cả dữ liệu?')) {
                 moodData = [];
@@ -255,8 +263,39 @@
             }
         });
 
-        updateChart();
-        updateMoodHistory();
-    </script>
-</body>
-</html>
+        document.getElementById('exportPdfBtn').addEventListener('click', async function() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            if (!startDate || !endDate) {
+                alert('Vui lòng chọn ngày bắt đầu và ngày kết thúc');
+                return;
+            }
+
+            const filteredData = moodData.filter(entry => {
+                const entryDate = new Date(entry.date);
+                return entryDate >= new Date(startDate) && entryDate <= new Date(endDate);
+            });
+
+            if (filteredData.length === 0) {
+                alert('Không có dữ liệu trong khoảng thời gian đã chọn');
+                return;
+            }
+
+            // Cập nhật biểu đồ và lịch sử với dữ liệu đã lọc
+            updateChart(filteredData);
+            updateMoodHistory(filteredData);
+
+            // Tạo PDF
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // Thêm tiêu đề
+            doc.setFontSize(18);
+            doc.text('Báo cáo Mood Chart', 105, 15, null, null, 'center');
+            doc.setFontSize(12);
+            doc.text(`Từ ngày ${startDate} đến ngày ${endDate}`, 105, 25, null, null, 'center');
+
+            // Thêm biểu đồ
+            const chartCanvas = document.getElementById('moodChart');
+            const chartImage = await html2canvas(chartCanvas);
